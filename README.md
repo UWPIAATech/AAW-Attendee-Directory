@@ -10,8 +10,10 @@ A WordPress plugin for displaying attendee information from the Idloom Events AP
 - Sortable columns for attendee details
 - Displays primary cast, other casts, and country information
 - API integration with Idloom Events
-- Admin configuration panel
-- Caching system (5min primary, 1hr backup)
+- Multiple events, each with its own shortcode (e.g. `[tucson27]`)
+- Per-event filter rules and table columns
+- Admin configuration panel with field discovery and a test tool
+- Caching system per event (5min primary, 1hr backup)
 - Support for large events (200+ attendees)
 
 ## Installation
@@ -23,15 +25,28 @@ A WordPress plugin for displaying attendee information from the Idloom Events AP
 
 ## Configuration
 
-1. Navigate to "Idloom Settings" in WordPress admin menu
-2. Enter your API Key
-3. Enter your Event ID
-4. Save settings
-5. (Optional) Monitor cache status in Cache Status submenu
+1. Navigate to "Idloom Events" in the WordPress admin menu
+2. Enter your API Key (shared by all events) and save
+3. Click "Add Event" and fill in:
+   - **Name** – for admin reference only
+   - **Shortcode** – e.g. `tucson27`; lowercase letters, numbers and underscores
+   - **Idloom Event ID** – then click "Load fields" to see the fields this event's form has
+   - **Who appears on the list** – completed registrations only, payment requirement
+     (none / paid / paid or exception field such as a coupon), and the opt-in field
+   - **Columns** – label, field, sortable, searchable, in display order
+4. Save, then use "Test event" to see how many registrations will be listed and why others are left out
+
+Each event's form numbers its custom questions differently (`free_field1`, `free_field2`, …),
+so rules and columns are set per event.
 
 ## Usage
 
-Use the shortcode `[display_attendees]` in any post or page to display the attendee list.
+Put the event's shortcode, e.g. `[tucson27]`, on a page. One list per page.
+
+### Upgrading from 1.2
+
+The single event configured in 1.2 is moved automatically to an event with the shortcode
+`[display_attendees]` and the same rules and columns as before, so existing pages keep working.
 
 ## File Structure
 
@@ -40,39 +55,21 @@ Use the shortcode `[display_attendees]` in any post or page to display the atten
   - class-api-handler.php
   - class-admin.php
   - class-display.php
+  - class-events.php
 - templates/
   - admin-page.php
+  - event-edit.php
   - attendee-list.php
-  - cache-status.php
 - assets/
   - css/style.css
   - js/script.js
+  - js/admin.js
 
 ## API Requirements
 
 - Requires valid Idloom Events API credentials
-- API must return attendee data with:
-  - firstname
-  - lastname
-  - free_field12 (Primary Cast)
-  - free_field40 (Other Casts)
-  - cpy_country
-  - free_field56 (Who's Registered List visibility)
-
-## Display Fields
-
-- First Name
-- Last Name
-- Primary Cast
-- Other Casts (comma-separated)
-- Country
-
-## Filtering
-
-Only displays attendees with:
-- registration_status = 'Complete'
-- payment_status = 'Paid'
-- free_field56 = true (Who's Registered List permission)
+- Rules use the standard `registration_status` ('Form Completed') and `payment_status` ('Paid') fields;
+  the exception, opt-in and column fields are chosen per event
 
 ## Dependencies
 
@@ -83,17 +80,20 @@ Only displays attendees with:
 
 ## Development
 
+### Events
+Stores per-event settings in the `idloom_events` option and validates admin input.
+
 ### API Handler
-Handles API communication, caching, and data filtering. Includes pagination support for large datasets.
+Handles API communication, per-event caching, and rule filtering. Includes pagination support for large datasets.
 
 ### Admin Panel
-Manages plugin settings and cache monitoring through WordPress admin interface.
+Manages the API key, events, and per-event cache through the WordPress admin interface.
 
 ### Display Handler
-Controls frontend display, sorting, searching, and shortcode functionality.
+Registers one shortcode per event and controls frontend display, sorting and searching.
 
 ## Debug Mode
-Enable WP_DEBUG in wp-config.php for detailed logging to wp-content/uploads/idloom-debug.log.
+Enable WP_DEBUG in wp-config.php for detailed logging to the PHP error log (wp-content/debug.log when WP_DEBUG_LOG is on).
 
 ## Styling
 

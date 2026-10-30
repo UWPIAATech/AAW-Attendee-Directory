@@ -14,37 +14,50 @@ class IdloomDisplay {
     public function __construct($api_handler) {
         $this->api_handler = $api_handler;
 
-        add_shortcode('display_attendees', array($this, 'display_attendees_shortcode'));
+        // Every configured event gets its own shortcode, e.g. [tucson27].
+        // Disabled events are registered too so the raw tag never shows on a page.
+        foreach (IdloomEvents::get_all() as $shortcode => $event) {
+            if (!shortcode_exists($shortcode)) {
+                add_shortcode($shortcode, array($this, 'display_attendees_shortcode'));
+            }
+        }
+
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
     }
 
     /**
-     * Handles the [display_attendees] shortcode output.
+     * Handles the output of every event shortcode.
      *
+     * @param array|string $atts    Shortcode attributes (unused).
+     * @param string|null  $content Enclosed content (unused).
+     * @param string       $tag     The shortcode name, which identifies the event.
      * @return string HTML output for the attendee list.
      */
-    public function display_attendees_shortcode() {
-        $attendees = $this->api_handler->fetch_attendees();
+    public function display_attendees_shortcode($atts = array(), $content = null, $tag = '') {
+        $event = IdloomEvents::get($tag);
+
+        if (!$event || empty($event['enabled'])) {
+            return '';
+        }
+
+        $columns = $event['columns'];
+
+        $attendees = $this->api_handler->fetch_attendees($event);
 
         if (!$attendees || !is_array($attendees)) {
             return '<p>No attendees found.</p>';
         }
 
         /*
-         * Search ONLY the visible table columns:
-         * First Name, Last Name, Primary Cast, Other Casts, Country.
+         * Search ONLY the visible columns marked searchable.
          */
         $search = isset($_GET['search']) ? sanitize_text_field(wp_unslash($_GET['search'])) : '';
 
-        if ($search !== '') {
-            $search_fields = array(
-                'firstname',
-                'lastname',
-                'cpy_name',
-                'free_field40',
-                'cpy_country',
-            );
+        $search_fields = array_column(array_filter($columns, function($column) {
+            return !empty($column['searchable']);
+        }), 'field');
 
+        if ($search !== '' && !empty($search_fields)) {
             $attendees = array_filter($attendees, function($attendee) use ($search, $search_fields) {
                 if (!is_array($attendee)) {
                     return false;
@@ -81,19 +94,20 @@ class IdloomDisplay {
         }
 
         /*
-         * Sort ONLY allowed visible columns.
+         * Sort ONLY visible columns marked sortable.
          */
-        $allowed_sort_columns = array(
-            'firstname',
-            'lastname',
-            'cpy_name',
-            'cpy_country',
-        );
+        $allowed_sort_columns = array_column(array_filter($columns, function($column) {
+            return !empty($column['sortable']);
+        }), 'field');
 
-        $sort_column = isset($_GET['sort']) ? sanitize_text_field(wp_unslash($_GET['sort'])) : 'lastname';
+        $default_sort = in_array($event['default_sort'] ?? '', $allowed_sort_columns, true)
+            ? $event['default_sort']
+            : ($allowed_sort_columns[0] ?? '');
+
+        $sort_column = isset($_GET['sort']) ? sanitize_text_field(wp_unslash($_GET['sort'])) : $default_sort;
 
         if (!in_array($sort_column, $allowed_sort_columns, true)) {
-            $sort_column = 'lastname';
+            $sort_column = $default_sort;
         }
 
         $sort_direction = isset($_GET['order']) ? strtolower(sanitize_text_field(wp_unslash($_GET['order']))) : 'asc';
@@ -103,19 +117,8 @@ class IdloomDisplay {
         }
 
         usort($attendees, function($a, $b) use ($sort_column, $sort_direction) {
-            $a_val = $a[$sort_column] ?? '';
-            $b_val = $b[$sort_column] ?? '';
-
-            if (is_array($a_val)) {
-                $a_val = implode(', ', array_filter($a_val, 'is_scalar'));
-            }
-
-            if (is_array($b_val)) {
-                $b_val = implode(', ', array_filter($b_val, 'is_scalar'));
-            }
-
-            $a_val = strtolower(trim((string) $a_val));
-            $b_val = strtolower(trim((string) $b_val));
+            $a_val = strtolower(trim(self::format_value($a[$sort_column] ?? '')));
+            $b_val = strtolower(trim(self::format_value($b[$sort_column] ?? '')));
 
             if ($a_val === $b_val) {
                 $a_lastname = strtolower(trim((string) ($a['lastname'] ?? '')));
@@ -184,6 +187,33 @@ class IdloomDisplay {
     }
 
     /**
+     * Turn a field value into display text. Multi-value fields (such as
+     * checkbox lists) are joined with commas.
+     *
+     * @param mixed $value Raw attendee field value.
+     * @return string
+     */
+    public static function format_value($value) {
+        if (is_array($value)) {
+            $flat_values = array();
+
+            array_walk_recursive($value, function($item) use (&$flat_values) {
+                if (is_scalar($item) && (string) $item !== '') {
+                    $flat_values[] = (string) $item;
+                }
+            });
+
+            return implode(', ', $flat_values);
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'Yes' : 'No';
+        }
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
      * Enqueues the necessary CSS and JavaScript files for the attendee list display.
      */
     public function enqueue_scripts() {
@@ -193,14 +223,14 @@ class IdloomDisplay {
             'idloom-attendees-style',
             plugins_url('../assets/css/style.css', __FILE__),
             array(),
-            '1.0'
+            filemtime(plugin_dir_path(__FILE__) . '../assets/css/style.css')
         );
 
         wp_enqueue_script(
             'idloom-attendees-script',
             plugins_url('../assets/js/script.js', __FILE__),
             array('jquery'),
-            '1.0',
+            filemtime(plugin_dir_path(__FILE__) . '../assets/js/script.js'),
             true
         );
     }

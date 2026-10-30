@@ -1,89 +1,44 @@
 <div class="attendee-list">
-    <input
-        type="text"
-        id="attendee-search"
-        class="attendee-search"
-        placeholder="Search attendees (minimum 3 characters)..."
-        value="<?php echo esc_attr($search_term); ?>"
-    >
+    <?php if (!empty($search_fields)): ?>
+        <input
+            type="text"
+            id="attendee-search"
+            class="attendee-search"
+            placeholder="Search attendees (minimum 3 characters)..."
+            value="<?php echo esc_attr($search_term); ?>"
+        >
+    <?php endif; ?>
 
     <table class="attendee-table">
         <thead>
             <tr>
-                <th class="sortable" data-sort="firstname">
-                    First Name
-                    <span class="dashicons <?php
-                        echo $sort_info['column'] === 'firstname'
-                            ? ($sort_info['direction'] === 'asc'
-                                ? 'dashicons-arrow-up'
-                                : 'dashicons-arrow-down')
-                            : '';
-                    ?>"></span>
-                </th>
-
-                <th class="sortable" data-sort="lastname">
-                    Last Name
-                    <span class="dashicons <?php
-                        echo $sort_info['column'] === 'lastname'
-                            ? ($sort_info['direction'] === 'asc'
-                                ? 'dashicons-arrow-up'
-                                : 'dashicons-arrow-down')
-                            : '';
-                    ?>"></span>
-                </th>
-
-                <th class="sortable" data-sort="cpy_name">
-                    Primary Cast
-                    <span class="dashicons <?php
-                        echo $sort_info['column'] === 'cpy_name'
-                            ? ($sort_info['direction'] === 'asc'
-                                ? 'dashicons-arrow-up'
-                                : 'dashicons-arrow-down')
-                            : '';
-                    ?>"></span>
-                </th>
-
-                <th>Other Casts</th>
-
-                <th class="sortable" data-sort="cpy_country">
-                    Country
-                    <span class="dashicons <?php
-                        echo $sort_info['column'] === 'cpy_country'
-                            ? ($sort_info['direction'] === 'asc'
-                                ? 'dashicons-arrow-up'
-                                : 'dashicons-arrow-down')
-                            : '';
-                    ?>"></span>
-                </th>
+                <?php foreach ($columns as $column): ?>
+                    <?php if (!empty($column['sortable'])): ?>
+                        <th class="sortable" data-sort="<?php echo esc_attr($column['field']); ?>">
+                            <?php echo esc_html($column['label']); ?>
+                            <span class="dashicons <?php
+                                echo $sort_info['column'] === $column['field']
+                                    ? ($sort_info['direction'] === 'asc'
+                                        ? 'dashicons-arrow-up'
+                                        : 'dashicons-arrow-down')
+                                    : '';
+                            ?>"></span>
+                        </th>
+                    <?php else: ?>
+                        <th><?php echo esc_html($column['label']); ?></th>
+                    <?php endif; ?>
+                <?php endforeach; ?>
             </tr>
         </thead>
 
         <tbody>
             <?php foreach ($paged_attendees as $attendee): ?>
                 <tr class="attendee-item">
-                    <td>
-                        <?php echo esc_html($attendee['firstname']); ?>
-                    </td>
-
-                    <td>
-                        <?php echo esc_html($attendee['lastname']); ?>
-                    </td>
-
-                    <td>
-                        <?php echo esc_html($attendee['cpy_name'] ?? ''); ?>
-                    </td>
-
-                    <td>
-                        <?php
-                        echo is_array($attendee['free_field40'] ?? null)
-                            ? esc_html(implode(', ', $attendee['free_field40']))
-                            : '';
-                        ?>
-                    </td>
-
-                    <td>
-                        <?php echo esc_html($attendee['cpy_country'] ?? ''); ?>
-                    </td>
+                    <?php foreach ($columns as $column): ?>
+                        <td>
+                            <?php echo esc_html(IdloomDisplay::format_value($attendee[$column['field']] ?? '')); ?>
+                        </td>
+                    <?php endforeach; ?>
                 </tr>
             <?php endforeach; ?>
         </tbody>

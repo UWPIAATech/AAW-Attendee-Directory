@@ -1,5 +1,23 @@
 # Changelog
 
+## Version 1.3
+
+## Features
+- Multiple events, each with its own shortcode (e.g. `[tucson27]`); one shared API key
+- Per-event filter rules: completed registration, payment (none / paid / paid or exception field), opt-in field
+- Per-event table columns with label, field, sortable and searchable settings
+- New admin: events list with per-event cache status, add/edit event screen
+- "Load fields" lists the fields an event's registrations contain, with example values
+- "Test event" shows how many registrations will be listed and why others are left out
+
+## Changes
+- Existing single-event settings migrate automatically to `[display_attendees]`
+- Cache Status page merged into the events list
+- Events with no qualifying attendees are cached instead of calling the API on every page view
+- An empty result no longer overwrites the backup cache
+- Debug logging now works when WP_DEBUG is on
+- CSS/JS versions use file modification time for cache busting
+
 ## Version 1.2
 
 ## Features
