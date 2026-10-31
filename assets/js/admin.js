@@ -43,18 +43,52 @@ jQuery(document).ready(function($) {
     function toggleOptinWarning() {
         $('#idloom-optin-warning').prop('hidden', $.trim($('#idloom-optin').val()) !== '');
     }
-    $('#idloom-optin').on('input', toggleOptinWarning);
+    $('#idloom-optin').on('change', toggleOptinWarning);
     if ($('#idloom-optin').length) {
         toggleOptinWarning();
     }
 
-    // Load the fields this event's registrations contain
+    // A column's label starts as its field's label until edited by hand
+    $('#idloom-columns-body').on('change', '.idloom-field-select', function() {
+        const $label = $(this).closest('tr').find('input[name$="[label]"]');
+        const fieldLabel = $(this).val() ? $(this).find('option:selected').text() : '';
+
+        if ($label.val() === '' || $label.val() === $label.data('auto')) {
+            $label.val(fieldLabel).data('auto', fieldLabel);
+        }
+    });
+
+    // Replace the options of every field dropdown (including the one in the
+    // new-column template), keeping each dropdown's current choice.
+    function setFieldOptions(fields) {
+        const template = document.getElementById('idloom-column-template');
+        const selects = $('.idloom-field-select').get()
+            .concat(template ? Array.from(template.content.querySelectorAll('.idloom-field-select')) : []);
+
+        selects.forEach(function(select) {
+            const current = select.value;
+            const $select = $(select).empty()
+                .append($('<option>').val('').text(select.dataset.empty));
+
+            fields.forEach(function(field) {
+                $select.append($('<option>').val(field.name).text(field.label));
+            });
+
+            if (current && !fields.some(function(field) { return field.name === current; })) {
+                $select.append($('<option>').val(current).text(current + ' (not on the form)'));
+            }
+
+            select.value = current;
+        });
+    }
+
+    // Load this event's registration form fields and labels from Idloom
     $('#idloom-load-fields').on('click', function() {
         const $button = $(this);
         const $result = $('#idloom-fields-result');
 
         $button.prop('disabled', true);
-        $result.prop('hidden', false).text('Loading…');
+        $result.text('Loading…');
 
         $.post(IdloomAdminData.ajaxUrl, {
             action: 'idloom_load_fields',
@@ -66,21 +100,8 @@ jQuery(document).ready(function($) {
                 return;
             }
 
-            const $list = $('#idloom-field-list').empty();
-            const $table = $('<table class="widefat striped"><thead><tr><th>Field</th><th>Example value</th></tr></thead><tbody></tbody></table>');
-
-            response.data.fields.forEach(function(item) {
-                $list.append($('<option>').attr('value', item.field).attr('label', item.sample));
-                $table.find('tbody').append(
-                    $('<tr>')
-                        .append($('<td>').append($('<code>').text(item.field)))
-                        .append($('<td>').text(item.sample))
-                );
-            });
-
-            $result.empty()
-                .append($('<p>').text(response.data.fields.length + ' fields found in ' + response.data.checked + ' recent registrations. Field boxes below now suggest these names.'))
-                .append($('<div style="max-height:300px;overflow:auto">').append($table));
+            setFieldOptions(response.data);
+            $result.text(response.data.length + ' fields loaded from the registration form.');
         }).fail(function() {
             $result.text('Request failed.');
         }).always(function() {

@@ -175,8 +175,8 @@ class IdloomAdmin {
     }
 
     /**
-     * List the fields an event's registrations contain, with a sample value
-     * for each, so the admin can map rules and columns without guessing.
+     * Load the fields on an event's registration form, with their labels, so
+     * rules and columns can be picked by name.
      */
     public function ajax_load_fields() {
         check_ajax_referer('idloom_admin', 'nonce');
@@ -189,38 +189,46 @@ class IdloomAdmin {
             wp_send_json_error('Enter the Idloom event ID first.');
         }
 
-        $sample = $this->api_handler->fetch_sample($event_uid);
-        if ($sample === false) {
-            wp_send_json_error('Could not load registrations. Check the API key and event ID.');
+        $fields = $this->api_handler->fetch_fields($event_uid, true);
+        if ($fields === false) {
+            wp_send_json_error('Could not load the registration form. Check the API key and event ID.');
         }
-        if (empty($sample)) {
-            wp_send_json_error('This event has no registrations yet, so there are no fields to show.');
+        if (empty($fields)) {
+            wp_send_json_error('This event\'s registration form has no fields yet.');
         }
-
-        // First non-empty value seen for each field.
-        $fields = array();
-        foreach ($sample as $attendee) {
-            if (!is_array($attendee)) {
-                continue;
-            }
-            foreach ($attendee as $field => $value) {
-                if (!isset($fields[$field]) || $fields[$field] === '') {
-                    $fields[$field] = mb_substr(IdloomDisplay::format_value($value), 0, 80);
-                }
-            }
-        }
-
-        uksort($fields, 'strnatcmp');
 
         $result = array();
-        foreach ($fields as $field => $value) {
-            $result[] = array('field' => (string) $field, 'sample' => $value);
+        foreach ($fields as $name => $label) {
+            $result[] = array('name' => (string) $name, 'label' => $label);
         }
 
-        wp_send_json_success(array(
-            'fields' => $result,
-            'checked' => count($sample),
-        ));
+        wp_send_json_success($result);
+    }
+
+    /**
+     * The fields to offer in the event form's dropdowns: the registration
+     * form's fields, plus any saved field that isn't on the form (so it
+     * still shows and can be changed).
+     *
+     * @return array array($fields, $loaded) where $fields is name => label.
+     */
+    public function field_choices($event) {
+        $fields = !empty($event['event_uid']) ? $this->api_handler->fetch_fields($event['event_uid']) : false;
+        $loaded = is_array($fields);
+        $fields = $loaded ? $fields : array();
+
+        $used = array_merge(
+            array_column($event['columns'], 'field'),
+            array($event['rules']['exception_field'], $event['rules']['optin_field'], $event['default_sort'])
+        );
+
+        foreach ($used as $name) {
+            if ($name !== '' && !isset($fields[$name])) {
+                $fields[$name] = $name . ' (not on the form)';
+            }
+        }
+
+        return array($fields, $loaded);
     }
 
     /**

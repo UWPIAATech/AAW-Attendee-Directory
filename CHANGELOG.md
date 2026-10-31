@@ -7,7 +7,9 @@
 - Per-event filter rules: completed registration, payment (none / paid / paid or exception field), opt-in field
 - Per-event table columns with label, field, sortable and searchable settings
 - New admin: events list with per-event cache status, add/edit event screen
-- "Load fields" lists the fields an event's registrations contain, with example values
+- "Load fields" reads the event's registration form from Idloom (`/events/fields`); rules and
+  columns are chosen from dropdowns showing each question's label instead of `free_fieldNN`
+- A new column's label defaults to its question's label
 - "Test event" shows how many registrations will be listed and why others are left out
 
 ## Changes

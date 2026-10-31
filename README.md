@@ -30,14 +30,16 @@ A WordPress plugin for displaying attendee information from the Idloom Events AP
 3. Click "Add Event" and fill in:
    - **Name** – for admin reference only
    - **Shortcode** – e.g. `tucson27`; lowercase letters, numbers and underscores
-   - **Idloom Event ID** – then click "Load fields" to see the fields this event's form has
+   - **Idloom Event ID** – then click "Load fields" to read the event's registration form; rules and
+     columns are then picked from dropdowns showing each question's label
    - **Who appears on the list** – completed registrations only, payment requirement
      (none / paid / paid or exception field such as a coupon), and the opt-in field
    - **Columns** – label, field, sortable, searchable, in display order
 4. Save, then use "Test event" to see how many registrations will be listed and why others are left out
 
 Each event's form numbers its custom questions differently (`free_field1`, `free_field2`, …),
-so rules and columns are set per event.
+so rules and columns are set per event. Labels come from the Idloom `GET /events/fields` endpoint
+and are cached for an hour.
 
 ## Usage
 

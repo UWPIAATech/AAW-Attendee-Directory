@@ -23,17 +23,13 @@ class IdloomAPIHandler {
         return 'idloom_attendees_' . md5($event['shortcode'] . '|' . $event['event_uid']);
     }
 
-    private function fetch_page($event_uid, $page = 1, $page_size = null) {
+    /**
+     * GET an API path and return the decoded JSON, or false on failure.
+     */
+    private function request($path, $query) {
         $api_key = get_option('idloom_api_key');
 
-        $url = $this->api_base_url . '/attendees?' . http_build_query([
-            'event_uid' => $event_uid,
-            'page' => $page,
-            'ignore_fields_mapping' => 1,
-            'page_size' => $page_size ?: $this->page_size
-        ]);
-
-        $this->log_message("Making API request for event {$event_uid} page {$page}");
+        $url = $this->api_base_url . $path . '?' . http_build_query($query);
 
         $response = wp_remote_get($url, array(
             'headers' => array('Authorization' => 'Bearer ' . $api_key),
@@ -49,11 +45,22 @@ class IdloomAPIHandler {
         $data = json_decode($body, true);
 
         if (!$data || !isset($data['data'])) {
-            $this->log_message("Invalid data received for event {$event_uid} page {$page}");
+            $this->log_message("Invalid data received for {$path}");
             return false;
         }
 
         return $data;
+    }
+
+    private function fetch_page($event_uid, $page = 1) {
+        $this->log_message("Making API request for event {$event_uid} page {$page}");
+
+        return $this->request('/attendees', [
+            'event_uid' => $event_uid,
+            'page' => $page,
+            'ignore_fields_mapping' => 1,
+            'page_size' => $this->page_size
+        ]);
     }
 
     /**
@@ -119,14 +126,55 @@ class IdloomAPIHandler {
     }
 
     /**
-     * Fetch a small batch of registrations so the admin can see which fields
-     * an event's form has.
+     * The fields on an event's registration form, with their labels, in form
+     * order: array('free_field40' => 'Other Casts', ...). Fields with
+     * subfields (such as an address) are listed by subfield.
+     * Cached for an hour; pass $refresh to reload.
      *
      * @return array|false
      */
-    public function fetch_sample($event_uid, $count = 50) {
-        $response = $this->fetch_page($event_uid, 1, $count);
-        return $response ? $response['data'] : false;
+    public function fetch_fields($event_uid, $refresh = false) {
+        $cache_key = 'idloom_fields_' . md5($event_uid);
+
+        if (!$refresh) {
+            $cached = get_transient($cache_key);
+            if ($cached !== false) {
+                return $cached;
+            }
+        }
+
+        $response = $this->request('/events/fields', ['event_uid' => $event_uid]);
+        if (!$response || !is_array($response['data'])) {
+            return false;
+        }
+
+        $clean = function($label, $name) {
+            $label = trim(html_entity_decode(wp_strip_all_tags((string) $label), ENT_QUOTES));
+            return $label !== '' ? $label : $name;
+        };
+
+        $fields = [];
+        foreach ($response['data'] as $field) {
+            if (empty($field['name'])) {
+                continue;
+            }
+
+            $label = $clean($field['label'] ?? '', $field['name']);
+
+            if (!empty($field['fields']) && is_array($field['fields'])) {
+                foreach ($field['fields'] as $subfield) {
+                    if (!empty($subfield['name'])) {
+                        $fields[$subfield['name']] = $label . ': ' . $clean($subfield['label'] ?? '', $subfield['name']);
+                    }
+                }
+            } else {
+                $fields[$field['name']] = $label;
+            }
+        }
+
+        set_transient($cache_key, $fields, HOUR_IN_SECONDS);
+
+        return $fields;
     }
 
     /**

@@ -25,7 +25,21 @@ if ($pending) {
 
 $rules = $event['rules'];
 
-$render_column_row = function($index, $column) {
+list($fields, $fields_loaded) = $this->field_choices($event);
+
+// A dropdown of the event's fields, shown by label.
+$field_select = function($name, $value, $empty_label, $attrs = '') use ($fields) {
+    ?>
+    <select name="<?php echo esc_attr($name); ?>" class="idloom-field-select" style="max-width:28em" data-empty="<?php echo esc_attr($empty_label); ?>" <?php echo $attrs; ?>>
+        <option value=""><?php echo esc_html($empty_label); ?></option>
+        <?php foreach ($fields as $field => $label): ?>
+            <option value="<?php echo esc_attr($field); ?>" <?php selected($value, $field); ?>><?php echo esc_html(mb_strimwidth($label, 0, 90, '…')); ?></option>
+        <?php endforeach; ?>
+    </select>
+    <?php
+};
+
+$render_column_row = function($index, $column) use ($field_select) {
     $name = 'event[columns][' . $index . ']';
     ?>
     <tr class="idloom-column-row">
@@ -34,7 +48,7 @@ $render_column_row = function($index, $column) {
             <button type="button" class="button-link idloom-move-down" aria-label="Move down"><span class="dashicons dashicons-arrow-down-alt2"></span></button>
         </td>
         <td><input type="text" name="<?php echo esc_attr($name); ?>[label]" value="<?php echo esc_attr($column['label']); ?>" placeholder="Shown as" class="regular-text"></td>
-        <td><input type="text" name="<?php echo esc_attr($name); ?>[field]" value="<?php echo esc_attr($column['field']); ?>" placeholder="free_field12" list="idloom-field-list"></td>
+        <td><?php $field_select($name . '[field]', $column['field'], '— Choose a field —'); ?></td>
         <td><input type="checkbox" name="<?php echo esc_attr($name); ?>[sortable]" value="1" <?php checked(!empty($column['sortable'])); ?>></td>
         <td><input type="checkbox" name="<?php echo esc_attr($name); ?>[searchable]" value="1" <?php checked(!empty($column['searchable'])); ?>></td>
         <td><button type="button" class="button-link idloom-remove-column">Remove</button></td>
@@ -59,8 +73,6 @@ $render_column_row = function($index, $column) {
             </ul>
         </div>
     <?php endif; ?>
-
-    <datalist id="idloom-field-list"></datalist>
 
     <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" id="idloom-event-form">
         <input type="hidden" name="action" value="idloom_save_event">
@@ -92,8 +104,16 @@ $render_column_row = function($index, $column) {
                 <td>
                     <input type="text" id="idloom-event-uid" name="event[event_uid]" value="<?php echo esc_attr($event['event_uid']); ?>" class="regular-text">
                     <button type="button" class="button" id="idloom-load-fields">Load fields</button>
-                    <p class="description">"Load fields" looks at recent registrations and lists the fields this event's form has, so you can pick them below.</p>
-                    <div id="idloom-fields-result" hidden></div>
+                    <p class="description">"Load fields" reads this event's registration form from Idloom so you can pick its questions below. Use it after entering a new event ID or changing the form.</p>
+                    <p id="idloom-fields-result">
+                        <?php if ($fields_loaded): ?>
+                            <?php echo esc_html(count($fields)); ?> fields available.
+                        <?php elseif (!empty($event['event_uid'])): ?>
+                            <strong>Couldn't load this event's form from Idloom.</strong> Check the API key and event ID, then click "Load fields".
+                        <?php else: ?>
+                            Enter the event ID and click "Load fields".
+                        <?php endif; ?>
+                    </p>
                 </td>
             </tr>
             <tr>
@@ -123,7 +143,7 @@ $render_column_row = function($index, $column) {
                     </select>
                     <p id="idloom-exception-row">
                         <label>Exception field
-                            <input type="text" name="event[rules][exception_field]" value="<?php echo esc_attr($rules['exception_field']); ?>" placeholder="free_field1" list="idloom-field-list">
+                            <?php $field_select('event[rules][exception_field]', $rules['exception_field'], '— Choose a field —'); ?>
                         </label>
                         <span class="description">e.g. a coupon code. Anyone with this filled in is shown even if unpaid.</span>
                     </p>
@@ -132,7 +152,7 @@ $render_column_row = function($index, $column) {
             <tr>
                 <th><label for="idloom-optin">Opt-in field</label></th>
                 <td>
-                    <input type="text" id="idloom-optin" name="event[rules][optin_field]" value="<?php echo esc_attr($rules['optin_field']); ?>" placeholder="free_field56" list="idloom-field-list">
+                    <?php $field_select('event[rules][optin_field]', $rules['optin_field'], '— None: list everyone —', 'id="idloom-optin"'); ?>
                     <p class="description">The "show me on the registered list" question. Only people who answered yes are shown.</p>
                     <p id="idloom-optin-warning" class="notice notice-warning inline" hidden>
                         No opt-in field: <strong>everyone</strong> who passes the rules above will be listed publicly.
@@ -169,8 +189,8 @@ $render_column_row = function($index, $column) {
             <tr>
                 <th><label for="idloom-default-sort">Default sort</label></th>
                 <td>
-                    <input type="text" id="idloom-default-sort" name="event[default_sort]" value="<?php echo esc_attr($event['default_sort']); ?>" placeholder="lastname" list="idloom-field-list">
-                    <p class="description">Field of a sortable column. Leave blank to sort by the first sortable column.</p>
+                    <?php $field_select('event[default_sort]', $event['default_sort'], '— First sortable column —', 'id="idloom-default-sort"'); ?>
+                    <p class="description">Must be one of the sortable columns.</p>
                 </td>
             </tr>
         </table>
