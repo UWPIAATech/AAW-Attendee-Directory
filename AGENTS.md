@@ -1,7 +1,9 @@
 # AGENTS.md
 
 Notes for anyone (human or AI) working on this plugin. See README.md for features and admin usage.
-This file is publicly readable on the website. Never put API keys, event IDs or attendee data here.
+Never put API keys, event IDs or attendee data here. Web access to `.md` files, dotfiles and `.git/`
+is blocked site-wide by a rule in `/opt/uwpiaa/php-security.conf` (outside this repo), but this file is
+still on GitHub.
 
 ## This folder is the live site
 
